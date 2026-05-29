@@ -109,6 +109,15 @@ export default function HomePage() {
     if (token) router.replace("/dashboard");
   }, [token, router]);
 
+  function getErrorMessage(err: unknown, fallback: string) {
+    if (err instanceof Error) return err.message;
+    if (typeof err === "string") return err;
+    if (typeof err === "object" && err !== null && "message" in err) {
+      return String((err as any).message);
+    }
+    return fallback;
+  }
+
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
@@ -123,7 +132,7 @@ export default function HomePage() {
       setAuth(res.data.user, res.data.token);
       window.location.href = "/dashboard";
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao fazer login");
+      setError(getErrorMessage(err, "Erro ao fazer login"));
     } finally {
       setLoading(false);
     }
@@ -148,7 +157,7 @@ export default function HomePage() {
       setSuccess("Conta criada! Faça login.");
       setTab("login");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao cadastrar");
+      setError(getErrorMessage(err, "Erro ao cadastrar"));
     } finally {
       setLoading(false);
     }

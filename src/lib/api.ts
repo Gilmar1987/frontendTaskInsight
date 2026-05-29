@@ -40,14 +40,26 @@ async function fetchApi(url: string, options: RequestInit = {}) {
     }
   }
 
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    console.error(`%c${apiLabel}`, "color: #e74c3c", method, url, "→", res.status, json?.message || "");
-    const message = res.status === 401
-      ? "Credenciais inválidas"
-      : json?.message || `Erro ${res.status}`;
-    throw new Error(message);
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { message: text || undefined };
   }
+
+  if (!res.ok) {
+    const errorMessage = res.status === 401
+      ? "Credenciais inválidas"
+      : json?.errors?.[0]?.message
+      || json?.message
+      || (typeof json === "string" ? json : undefined)
+      || `Erro ${res.status}`;
+
+    console.error(`%c${apiLabel}`, "color: #e74c3c", method, url, "→", res.status, errorMessage);
+    throw new Error(errorMessage);
+  }
+
   console.log(`%c${apiLabel}`, apiColor, method, url, "→", res.status);
   return json;
 }
