@@ -1,3 +1,32 @@
-node_modules
-.next
-.env*.local
+# Node.js dependencies
+node_modules/
+
+# Next.js build output
+.next/
+
+# Local environment files
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/
+.idea/
+.DS_Store
+
+# Optional npm cache
+.npm
+
+# TypeScript
+*.tsbuildinfo
+
+# Mac
+*.swp
+
+# Misc
+coverage/

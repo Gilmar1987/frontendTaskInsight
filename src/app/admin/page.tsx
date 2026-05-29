@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { nodeApi } from "@/lib/api";
+import { analyticsApi } from "@/lib/analyticsApi";
 import { useAuth } from "@/store/auth";
 import { IUser } from "@/types/user.types";
 import { ITask, TaskStatus, TaskPriority } from "@/types/task.types";
+import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse } from "@/types/metrics.types";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   PENDING: "Pendente",
@@ -163,12 +165,19 @@ const s = {
 export default function AdminPage() {
   const { user, clearAuth } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<"users" | "tasks">("users");
+  const [tab, setTab] = useState<"users" | "tasks" | "metrics">("users");
 
   const [users, setUsers] = useState<IUser[]>([]);
   const [tasks, setTasks] = useState<ITask[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(true);
+
+  const [metrics, setMetrics] = useState<{
+    status: MetricsByStatusResponse | null;
+    priority: MetricsByPriorityResponse | null;
+    avgTime: AverageTimeResponse | null;
+  }>({ status: null, priority: null, avgTime: null });
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
 
   const [userSearch, setUserSearch] = useState("");
   const [taskSearch, setTaskSearch] = useState("");
@@ -182,7 +191,26 @@ export default function AdminPage() {
     }
     loadUsers();
     loadTasks();
+    loadMetrics();
   }, [user]);
+
+  async function loadMetrics() {
+    const t = localStorage.getItem("token");
+    if (!t) return;
+    setLoadingMetrics(true);
+    try {
+      const [status, priority, avgTime] = await Promise.all([
+        analyticsApi.getByStatus(t),
+        analyticsApi.getByPriority(t),
+        analyticsApi.getAverageTime(t),
+      ]);
+      setMetrics({ status, priority, avgTime });
+    } catch {
+      setMetrics({ status: null, priority: null, avgTime: null });
+    } finally {
+      setLoadingMetrics(false);
+    }
+  }
 
   async function loadUsers() {
     setLoadingUsers(true);
@@ -291,6 +319,9 @@ export default function AdminPage() {
           </button>
           <button style={s.tab(tab === "tasks")} onClick={() => setTab("tasks")}>
             📋 Todas as Tarefas ({tasks.length})
+          </button>
+          <button style={s.tab(tab === "metrics")} onClick={() => setTab("metrics")}>
+            📊 Métricas Globais
           </button>
         </div>
 
@@ -412,6 +443,87 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+        {/* Métricas Globais */}
+        {tab === "metrics" && (
+          <div style={s.card}>
+            <h2 style={{ ...s.cardTitle, marginBottom: "1.5rem" }}>📊 Métricas Globais — Todos os Usuários</h2>
+            {loadingMetrics ? (
+              <div style={s.empty}>Carregando métricas...</div>
+            ) : !metrics.status ? (
+              <div style={s.empty}>API de analytics indisponível.</div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "2rem" }}>
+                {/* Por Status */}
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: "1rem", color: "#1e3a5f" }}>Distribuição por Status</div>
+                  <div style={{ fontSize: "0.85rem", color: "#888", marginBottom: "0.75rem" }}>
+                    Total: {metrics.status.data.total_tasks} tarefas
+                  </div>
+                  {(["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"] as const).map((st) => {
+                    const STATUS_LABEL_MAP = { PENDING: "Pendente", IN_PROGRESS: "Em Andamento", DONE: "Concluída", CANCELLED: "Cancelada" };
+                    const STATUS_COLOR_MAP = { PENDING: "#f39c12", IN_PROGRESS: "#2980b9", DONE: "#27ae60", CANCELLED: "#95a5a6" };
+                    const item = metrics.status!.data[st];
+                    return (
+                      <div key={st} style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: "0.85rem" }}>
+                          <span style={{ color: "#555" }}>{STATUS_LABEL_MAP[st]}</span>
+                          <span style={{ color: "#888" }}>{item.count} ({item.percent.toFixed(1)}%)</span>
+                        </div>
+                        <div style={{ height: 8, background: "#eee", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ width: `${item.percent}%`, height: "100%", background: STATUS_COLOR_MAP[st], borderRadius: 4, transition: "width 0.5s" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Por Prioridade */}
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: "1rem", color: "#1e3a5f" }}>Distribuição por Prioridade</div>
+                  <div style={{ fontSize: "0.85rem", color: "#888", marginBottom: "0.75rem" }}>
+                    Total: {metrics.priority!.data.total_tasks} tarefas
+                  </div>
+                  {(["HIGH", "MEDIUM", "LOW"] as const).map((pr) => {
+                    const PRIORITY_LABEL_MAP = { HIGH: "Alta", MEDIUM: "Média", LOW: "Baixa" };
+                    const PRIORITY_COLOR_MAP = { HIGH: "#e74c3c", MEDIUM: "#f39c12", LOW: "#27ae60" };
+                    const item = metrics.priority!.data[pr];
+                    return (
+                      <div key={pr} style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: "0.85rem" }}>
+                          <span style={{ color: "#555" }}>{PRIORITY_LABEL_MAP[pr]}</span>
+                          <span style={{ color: "#888" }}>{item.count} ({item.percent.toFixed(1)}%)</span>
+                        </div>
+                        <div style={{ height: 8, background: "#eee", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ width: `${item.percent}%`, height: "100%", background: PRIORITY_COLOR_MAP[pr], borderRadius: 4, transition: "width 0.5s" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Tempo Médio */}
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: "1rem", color: "#1e3a5f" }}>Tempo Médio de Conclusão</div>
+                  {metrics.avgTime!.data.average_time_hours === 0 ? (
+                    <div style={{ color: "#aaa", fontSize: "0.85rem" }}>Nenhuma tarefa concluída com tempo registrado.</div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "2.5rem", fontWeight: 700, color: "#1e3a5f" }}>
+                        {metrics.avgTime!.data.average_time_hours.toFixed(1)}h
+                      </div>
+                      <div style={{ fontSize: "0.9rem", color: "#888", marginTop: 4 }}>
+                        {metrics.avgTime!.data.average_time_days.toFixed(2)} dias
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#aaa", marginTop: 4 }}>
+                        {Math.round(metrics.avgTime!.data.average_time_seconds / 60)} minutos em média
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}

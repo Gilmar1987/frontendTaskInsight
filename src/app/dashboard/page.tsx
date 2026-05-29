@@ -3,8 +3,11 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { nodeApi } from "@/lib/api";
+import { analyticsApi } from "@/lib/analyticsApi";
 import { useAuth } from "@/store/auth";
 import { ITask, TaskStatus, TaskPriority, ICreateTask } from "@/types/task.types";
+import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse, TimelineResponse } from "@/types/metrics.types";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   PENDING: "Pendente",
@@ -135,10 +138,51 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "ALL">("ALL");
 
+  const [metrics, setMetrics] = useState<{
+    status: MetricsByStatusResponse | null;
+    priority: MetricsByPriorityResponse | null;
+    avgTime: AverageTimeResponse | null;
+  }>({ status: null, priority: null, avgTime: null });
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
+
   useEffect(() => {
     if (!token) { router.replace("/"); return; }
     loadTasks();
+    loadMetrics();
+    loadTimeline();
   }, [token]);
+
+  async function loadTimeline() {
+    if (!token) return;
+    setLoadingTimeline(true);
+    try {
+      const data = await analyticsApi.getTimeline(token);
+      setTimeline(data);
+    } catch {
+      setTimeline(null);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  }
+
+  async function loadMetrics() {
+    if (!token) return;
+    setLoadingMetrics(true);
+    try {
+      const [status, priority, avgTime] = await Promise.all([
+        analyticsApi.getByStatus(token),
+        analyticsApi.getByPriority(token),
+        analyticsApi.getAverageTime(token),
+      ]);
+      setMetrics({ status, priority, avgTime });
+    } catch {
+      setMetrics({ status: null, priority: null, avgTime: null });
+    } finally {
+      setLoadingMetrics(false);
+    }
+  }
 
   async function loadTasks() {
     setLoading(true);
@@ -239,6 +283,103 @@ export default function DashboardPage() {
             <div style={s.statNum}>{stats.done}</div>
             <div style={s.statLabel}>Concluídas</div>
           </div>
+        </div>
+
+        {/* Métricas Analytics */}
+        <div style={s.card}>
+          <h2 style={s.cardTitle}>📊 Métricas</h2>
+          {loadingMetrics ? (
+            <div style={s.empty}>Carregando métricas...</div>
+          ) : !metrics.status ? (
+            <div style={s.empty}>API de analytics indisponível.</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+              {/* Por Status */}
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#555", fontSize: "0.85rem", textTransform: "uppercase" as const }}>Por Status</div>
+                {(["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"] as const).map((s_) => (
+                  <div key={s_} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: "0.85rem", color: "#555" }}>{STATUS_LABEL[s_]}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 80, height: 6, background: "#eee", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${metrics.status!.data[s_].percent}%`, height: "100%", background: STATUS_COLOR[s_], borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: "0.82rem", color: "#888", minWidth: 32 }}>{metrics.status!.data[s_].count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Por Prioridade */}
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#555", fontSize: "0.85rem", textTransform: "uppercase" as const }}>Por Prioridade</div>
+                {(["HIGH", "MEDIUM", "LOW"] as const).map((p_) => (
+                  <div key={p_} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: "0.85rem", color: "#555" }}>{p_ === "HIGH" ? "Alta" : p_ === "MEDIUM" ? "Média" : "Baixa"}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 80, height: 6, background: "#eee", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${metrics.priority!.data[p_].percent}%`, height: "100%", background: PRIORITY_COLOR[p_], borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: "0.82rem", color: "#888", minWidth: 32 }}>{metrics.priority!.data[p_].count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tempo Médio */}
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: "0.75rem", color: "#555", fontSize: "0.85rem", textTransform: "uppercase" as const }}>Tempo Médio de Conclusão</div>
+                {metrics.avgTime!.data.average_time_hours === 0 ? (
+                  <div style={{ color: "#aaa", fontSize: "0.85rem" }}>Nenhuma tarefa concluída com tempo registrado.</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: "2rem", fontWeight: 700, color: "#1e3a5f" }}>
+                      {metrics.avgTime!.data.average_time_hours.toFixed(1)}h
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "#888" }}>
+                      {metrics.avgTime!.data.average_time_days.toFixed(2)} dias
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#aaa", marginTop: 4 }}>
+                      {Math.round(metrics.avgTime!.data.average_time_seconds / 60)} minutos
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Gráfico de Linha — Timeline */}
+        <div style={s.card}>
+          <h2 style={s.cardTitle}>📈 Evolução de Tarefas</h2>
+          {loadingTimeline ? (
+            <div style={s.empty}>Carregando gráfico...</div>
+          ) : !timeline || timeline.data.length === 0 ? (
+            <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={timeline.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#888" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
+                  formatter={(value, name) => [
+                    value,
+                    name === "criadas" ? "Criadas" : name === "finalizadas" ? "Finalizadas" : "Backlog",
+                  ]}
+                />
+                <Legend
+                  formatter={(value) =>
+                    value === "criadas" ? "Criadas" : value === "finalizadas" ? "Finalizadas" : "Backlog"
+                  }
+                />
+                <Line type="monotone" dataKey="criadas"    stroke="#2980b9" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="finalizadas" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="backlog"    stroke="#e74c3c" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} strokeDasharray="5 5" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Formulário de criação */}
