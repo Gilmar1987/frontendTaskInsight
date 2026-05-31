@@ -6,7 +6,8 @@ import { nodeApi } from "@/lib/api";
 import { analyticsApi } from "@/lib/analyticsApi";
 import { useAuth } from "@/store/auth";
 import { ITask, TaskStatus, TaskPriority, ICreateTask } from "@/types/task.types";
-import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse, TimelineResponse } from "@/types/metrics.types";
+import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse, 
+  TimelineResponse,ThroughputResponse, ResponseTimeResponse } from "@/types/metrics.types";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -142,16 +143,24 @@ export default function DashboardPage() {
     status: MetricsByStatusResponse | null;
     priority: MetricsByPriorityResponse | null;
     avgTime: AverageTimeResponse | null;
-  }>({ status: null, priority: null, avgTime: null });
+    
+  }>({ status: null, priority: null, avgTime: null, });
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [throughput, setThroughput] = useState<ThroughputResponse | null>(null);
+  const [loadingThroughput, setLoadingThroughput] = useState(true);
+  const [responseTime, setResponseTime] = useState<ResponseTimeResponse | null>(null);
+  const [loadingResponseTime, setLoadingResponseTime] = useState(true);
 
   useEffect(() => {
     if (!token) { router.replace("/"); return; }
     loadTasks();
     loadMetrics();
     loadTimeline();
+    loadThroughput();
+    loadResponseTime();
+
   }, [token]);
 
   async function loadTimeline() {
@@ -164,6 +173,32 @@ export default function DashboardPage() {
       setTimeline(null);
     } finally {
       setLoadingTimeline(false);
+    }
+  }
+
+  async function loadThroughput() {
+    if (!token) return;
+    setLoadingThroughput(true);
+    try {
+      const data = await analyticsApi.getThroughput(token);
+      setThroughput(data);
+    } catch {
+      setThroughput(null);
+    } finally {
+      setLoadingThroughput(false);
+    }
+  }
+
+  async function loadResponseTime() {
+    if (!token) return;
+    setLoadingResponseTime(true);
+    try {
+      const data = await analyticsApi.getResponseTime(token);
+      setResponseTime(data);
+    } catch {
+      setResponseTime(null);
+    } finally {
+      setLoadingResponseTime(false);
     }
   }
 
@@ -349,9 +384,42 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Gráfico de Linha — Timeline */}
+        {/* Gráfico de Linha — Produtividade Diária */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>📈 Evolução de Tarefas</h2>
+          <h2 style={s.cardTitle}>📈 Produtividade Diária</h2>
+          {loadingThroughput ? (
+            <div style={s.empty}>Carregando gráfico...</div>
+          ) : !throughput || throughput.data.length === 0 ? (
+            <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={throughput.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#888" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
+                  formatter={(value, name) => [
+                    value,
+                     "Tarefas" ,
+                  ]}
+                />
+                <Legend
+                  formatter={(value) =>
+                     "Tarefas Finalizadas" 
+                  }
+                />
+                
+                <Line type="monotone" dataKey="count" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Gráfico de Linha —   backlog*/}
+        <div style={s.card}>
+          <h2 style={s.cardTitle}>📈 Evolução de Tarefas - Backlog</h2>
           {loadingTimeline ? (
             <div style={s.empty}>Carregando gráfico...</div>
           ) : !timeline || timeline.data.length === 0 ? (
@@ -381,6 +449,45 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           )}
         </div>
+
+         {/* Gráfico de Linha — SLA Diária */}
+        <div style={s.card}>
+          <h2 style={s.cardTitle}>📈 SLA Diária Meta 90% com 03 horas para iniciar atendimento</h2>
+          {loadingResponseTime ? (
+            <div style={s.empty}>Carregando gráfico...</div>
+          ) : !responseTime || responseTime.data.length === 0 ? (
+            <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={responseTime.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#888" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
+                  formatter={(value, name) => [
+                    value,
+                    name === "slaPercentage" ? "SLA (%)" : name === "target" ? "Meta SLA 90%" : "",
+                     
+                  ]}
+                />
+                <Legend
+                  formatter={(value) =>
+                    value === "slaPercentage" ? "SLA das Tarefas %" : value === "target" ? "Meta SLA 90%" : ""
+                      
+
+                  }
+                />
+                
+                <Line type="monotone" dataKey="slaPercentage" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="target" stroke="#f39c12" strokeWidth={2} dot={false} activeDot={false} strokeDasharray="5 5" />
+                
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+         
 
         {/* Formulário de criação */}
         <div style={s.card}>

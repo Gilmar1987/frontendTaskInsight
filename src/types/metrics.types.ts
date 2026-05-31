@@ -33,6 +33,14 @@ export interface AverageTimeResponse {
   };
 }
 
+export interface ThroughputItem {
+  day: string;
+  count: number;
+}
+export interface ThroughputResponse {
+  success: boolean;
+  data: ThroughputItem[];
+}
 export interface TimelineItem {
   date: string;
   criadas: number;
@@ -43,4 +51,15 @@ export interface TimelineItem {
 export interface TimelineResponse {
   success: boolean;
   data: TimelineItem[];
+}
+
+export interface ResponseTimeItem {
+  date: string;
+  slaPercentage: number;
+  target: 90; // Meta de SLA (exemplo: 90%)
+}
+
+export interface ResponseTimeResponse {
+  success: boolean;
+  data: ResponseTimeItem[];
 }
