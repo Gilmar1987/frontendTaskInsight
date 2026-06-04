@@ -7,7 +7,7 @@ import { analyticsApi } from "@/lib/analyticsApi";
 import { useAuth } from "@/store/auth";
 import { ITask, TaskStatus, TaskPriority, ICreateTask } from "@/types/task.types";
 import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse, 
-  TimelineResponse,ThroughputResponse, ResponseTimeResponse } from "@/types/metrics.types";
+  TimelineResponse,ThroughputResponse, ResponseTimeResponse, ResolutionTimeResponse } from "@/types/metrics.types";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -143,7 +143,7 @@ export default function DashboardPage() {
     status: MetricsByStatusResponse | null;
     priority: MetricsByPriorityResponse | null;
     avgTime: AverageTimeResponse | null;
-    
+  
   }>({ status: null, priority: null, avgTime: null, });
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
@@ -152,6 +152,8 @@ export default function DashboardPage() {
   const [loadingThroughput, setLoadingThroughput] = useState(true);
   const [responseTime, setResponseTime] = useState<ResponseTimeResponse | null>(null);
   const [loadingResponseTime, setLoadingResponseTime] = useState(true);
+  const [resolutionTime, setResolutionTime] = useState<ResolutionTimeResponse | null>(null);
+  const [loadingResolutionTime, setLoadingResolutionTime] = useState(true);
 
   useEffect(() => {
     if (!token) { router.replace("/"); return; }
@@ -160,6 +162,7 @@ export default function DashboardPage() {
     loadTimeline();
     loadThroughput();
     loadResponseTime();
+    loadResolutionTime();
 
   }, [token]);
 
@@ -199,6 +202,19 @@ export default function DashboardPage() {
       setResponseTime(null);
     } finally {
       setLoadingResponseTime(false);
+    }
+  }
+
+  async function loadResolutionTime() {
+    if (!token) return;
+    setLoadingResolutionTime(true);
+    try {
+      const data = await analyticsApi.getResolutionTime(token);
+      setResolutionTime(data);
+    } catch {
+      setResolutionTime(null);
+    } finally {
+      setLoadingResolutionTime(false);
     }
   }
 
@@ -450,7 +466,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-         {/* Gráfico de Linha — SLA Diária */}
+         {/* Gráfico de Linha —  ResponseTime SLA Diária */}
         <div style={s.card}>
           <h2 style={s.cardTitle}>📈 SLA Diária Meta 90% com 03 horas para iniciar atendimento</h2>
           {loadingResponseTime ? (
@@ -481,6 +497,43 @@ export default function DashboardPage() {
                 
                 <Line type="monotone" dataKey="slaPercentage" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 <Line type="monotone" dataKey="target" stroke="#f39c12" strokeWidth={2} dot={false} activeDot={false} strokeDasharray="5 5" />
+                
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Gráfico de Linha —  ResolutionTime SLA Diária */}
+        <div style={s.card}>
+          <h2 style={s.cardTitle}>📈 SLA Diária Meta 90% com 03 horas para iniciar atendimento</h2>
+          {loadingResolutionTime ? (
+            <div style={s.empty}>Carregando gráfico...</div>
+          ) : !resolutionTime || resolutionTime.data.length === 0 ? (
+            <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={resolutionTime.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#888" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
+                  formatter={(value, name) => [
+                    value,
+                    name === "onTimeSolution" ? "SLA  Resolution (%)" : name === "target" ? "Meta SLA Resolution 90%" : "",
+                     
+                  ]}
+                />
+                <Legend
+                  formatter={(value) =>
+                    value === "onTimeSolution" ? "SLA  Resolution das Tarefas %" : value === "target" ? "Meta SLA Resolution 90%" : ""
+                      
+
+                  }
+                />
+                
+                <Line type="monotone" dataKey="onTimeSolution" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="target" stroke="#f31246" strokeWidth={2} dot={false} activeDot={false} strokeDasharray="5 5" />
                 
               </LineChart>
             </ResponsiveContainer>
