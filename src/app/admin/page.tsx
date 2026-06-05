@@ -183,6 +183,8 @@ export default function AdminPage() {
   const [taskSearch, setTaskSearch] = useState("");
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "ALL">("ALL");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<TaskPriority | "ALL">("ALL");
+  const [taskPage, setTaskPage] = useState(1);
+  const TASKS_PER_PAGE = 10;
 
   useEffect(() => {
     if (user && user.role !== "admin") {
@@ -265,6 +267,8 @@ export default function AdminPage() {
     u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.email.toLowerCase().includes(userSearch.toLowerCase())
   );
+
+  const resetTaskPage = () => setTaskPage(1);
 
   const filteredTasks = tasks.filter((t) => {
     const matchSearch = t.title.toLowerCase().includes(taskSearch.toLowerCase());
@@ -391,16 +395,16 @@ export default function AdminPage() {
                 style={s.searchInput}
                 placeholder="Buscar por título..."
                 value={taskSearch}
-                onChange={(e) => setTaskSearch(e.target.value)}
+                onChange={(e) => { setTaskSearch(e.target.value); resetTaskPage(); }}
               />
-              <select style={s.select} value={taskStatusFilter} onChange={(e) => setTaskStatusFilter(e.target.value as TaskStatus | "ALL")}>
+              <select style={s.select} value={taskStatusFilter} onChange={(e) => { setTaskStatusFilter(e.target.value as TaskStatus | "ALL"); resetTaskPage(); }}>
                 <option value="ALL">Todos os status</option>
                 <option value="PENDING">Pendente</option>
                 <option value="IN_PROGRESS">Em Andamento</option>
                 <option value="DONE">Concluída</option>
                 <option value="CANCELLED">Cancelada</option>
               </select>
-              <select style={s.select} value={taskPriorityFilter} onChange={(e) => setTaskPriorityFilter(e.target.value as TaskPriority | "ALL")}>
+              <select style={s.select} value={taskPriorityFilter} onChange={(e) => { setTaskPriorityFilter(e.target.value as TaskPriority | "ALL"); resetTaskPage(); }}>
                 <option value="ALL">Todas as prioridades</option>
                 <option value="LOW">Baixa</option>
                 <option value="MEDIUM">Média</option>
@@ -412,6 +416,7 @@ export default function AdminPage() {
             ) : filteredTasks.length === 0 ? (
               <div style={s.empty}>Nenhuma tarefa encontrada.</div>
             ) : (
+              <>
               <table style={s.table}>
                 <thead>
                   <tr>
@@ -424,7 +429,7 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTasks.map((t) => (
+                  {filteredTasks.slice((taskPage - 1) * TASKS_PER_PAGE, taskPage * TASKS_PER_PAGE).map((t) => (
                     <tr key={t._id}>
                       <td style={s.td}>
                         <div style={{ fontWeight: 500 }}>{t.title}</div>
@@ -443,6 +448,38 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+              {/* Paginação */}
+              {filteredTasks.length > TASKS_PER_PAGE && (
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1rem" }}>
+                  <button
+                    onClick={() => setTaskPage(p => Math.max(1, p - 1))}
+                    disabled={taskPage === 1}
+                    style={{ ...s.deleteBtn, background: taskPage === 1 ? "#f5f5f5" : "#fff", color: taskPage === 1 ? "#ccc" : "#1e3a5f", border: "1px solid #ddd", padding: "4px 12px" }}
+                  >
+                    ‹ Anterior
+                  </button>
+                  {Array.from({ length: Math.ceil(filteredTasks.length / TASKS_PER_PAGE) }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setTaskPage(page)}
+                      style={{ padding: "4px 10px", border: "1px solid", borderColor: page === taskPage ? "#1e3a5f" : "#ddd", borderRadius: 6, background: page === taskPage ? "#1e3a5f" : "#fff", color: page === taskPage ? "#fff" : "#555", cursor: "pointer", fontWeight: page === taskPage ? 600 : 400, fontSize: "0.85rem" }}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setTaskPage(p => Math.min(Math.ceil(filteredTasks.length / TASKS_PER_PAGE), p + 1))}
+                    disabled={taskPage === Math.ceil(filteredTasks.length / TASKS_PER_PAGE)}
+                    style={{ ...s.deleteBtn, background: taskPage === Math.ceil(filteredTasks.length / TASKS_PER_PAGE) ? "#f5f5f5" : "#fff", color: taskPage === Math.ceil(filteredTasks.length / TASKS_PER_PAGE) ? "#ccc" : "#1e3a5f", border: "1px solid #ddd", padding: "4px 12px" }}
+                  >
+                    Próximo ›
+                  </button>
+                  <span style={{ fontSize: "0.82rem", color: "#888", marginLeft: "0.5rem" }}>
+                    {filteredTasks.length} tarefa{filteredTasks.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
+              </>
             )}
           </div>
         )}

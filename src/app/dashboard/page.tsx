@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { nodeApi } from "@/lib/api";
 import { analyticsApi } from "@/lib/analyticsApi";
 import { useAuth } from "@/store/auth";
-import { ITask, TaskStatus, TaskPriority, ICreateTask } from "@/types/task.types";
+import { ITask, TaskStatus, TaskPriority, ICreateTask, IDeadlineHistoryEntry } from "@/types/task.types";
 import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse, 
   TimelineResponse,ThroughputResponse, ResponseTimeResponse, ResolutionTimeResponse } from "@/types/metrics.types";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -138,6 +138,13 @@ export default function DashboardPage() {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "ALL">("ALL");
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+  const [extendForm, setExtendForm] = useState<{ taskId: string; dueDate: string; reason: string } | null>(null);
+  const [showHistory, setShowHistory] = useState<string | null>(null);
+  const [extendError, setExtendError] = useState("");
+  const [extendSubmitting, setExtendSubmitting] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const [metrics, setMetrics] = useState<{
     status: MetricsByStatusResponse | null;
@@ -288,12 +295,35 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleExtendDeadline() {
+    if (!extendForm) return;
+    if (!extendForm.dueDate) { setExtendError("Nova data é obrigatória"); return; }
+    if (!extendForm.reason.trim()) { setExtendError("Motivo é obrigatório"); return; }
+    if (extendForm.reason.length > 500) { setExtendError("Máximo de 500 caracteres"); return; }
+    setExtendError("");
+    setExtendSubmitting(true);
+    try {
+      await nodeApi.put(`/tasks/${extendForm.taskId}`, {
+        dueDate: extendForm.dueDate,
+        deadlineChangeReason: extendForm.reason,
+      });
+      setExtendForm(null);
+      await loadTasks();
+    } catch (err: unknown) {
+      setExtendError(err instanceof Error ? err.message : "Erro ao prorrogar");
+    } finally {
+      setExtendSubmitting(false);
+    }
+  }
+
   function handleLogout() {
     clearAuth();
     router.replace("/");
   }
 
   const filtered = filterStatus === "ALL" ? tasks : tasks.filter((t) => t.status === filterStatus);
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const stats = {
     total: tasks.length,
@@ -544,49 +574,51 @@ export default function DashboardPage() {
 
         {/* Formulário de criação */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>Nova Tarefa</h2>
-          <form onSubmit={handleCreate}>
-            <div style={s.grid}>
-              <div style={s.fieldFull}>
-                <label style={s.label}>Título *</label>
-                <input style={s.input} name="title" placeholder="Título da tarefa" required minLength={3} maxLength={120} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showCreateForm ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>Nova Tarefa</h2>
+            <button style={s.btn(showCreateForm ? "#95a5a6" : "#2d6a9f")} onClick={() => setShowCreateForm(v => !v)}>
+              {showCreateForm ? "✕ Cancelar" : "+ Criar Tarefa"}
+            </button>
+          </div>
+          {showCreateForm && (
+            <form onSubmit={async (e) => { await handleCreate(e); setShowCreateForm(false); }}>
+              <div style={s.grid}>
+                <div style={s.fieldFull}>
+                  <label style={s.label}>Título *</label>
+                  <input style={s.input} name="title" placeholder="Título da tarefa" required minLength={3} maxLength={120} />
+                </div>
+                <div style={s.fieldFull}>
+                  <label style={s.label}>Descrição *</label>
+                  <textarea style={{ ...s.input, resize: "vertical", minHeight: 70 }} name="description" placeholder="Descreva a tarefa..." required />
+                </div>
+                <div style={s.field}>
+                  <label style={s.label}>Prioridade</label>
+                  <select style={s.select} name="priority" defaultValue="MEDIUM">
+                    <option value="LOW">Baixa</option>
+                    <option value="MEDIUM">Média</option>
+                    <option value="HIGH">Alta</option>
+                  </select>
+                </div>
+                <div style={s.field}>
+                  <label style={s.label}>Prazo</label>
+                  <input style={s.input} name="dueDate" type="date" />
+                </div>
               </div>
-              <div style={s.fieldFull}>
-                <label style={s.label}>Descrição *</label>
-                <textarea
-                  style={{ ...s.input, resize: "vertical", minHeight: 70 }}
-                  name="description"
-                  placeholder="Descreva a tarefa..."
-                  required
-                />
+              {formError && <div style={s.error}>{formError}</div>}
+              <div style={{ marginTop: "0.75rem" }}>
+                <button style={s.btn()} type="submit" disabled={submitting}>
+                  {submitting ? "Criando..." : "Salvar Tarefa"}
+                </button>
               </div>
-              <div style={s.field}>
-                <label style={s.label}>Prioridade</label>
-                <select style={s.select} name="priority" defaultValue="MEDIUM">
-                  <option value="LOW">Baixa</option>
-                  <option value="MEDIUM">Média</option>
-                  <option value="HIGH">Alta</option>
-                </select>
-              </div>
-              <div style={s.field}>
-                <label style={s.label}>Prazo</label>
-                <input style={s.input} name="dueDate" type="date" />
-              </div>
-            </div>
-            {formError && <div style={s.error}>{formError}</div>}
-            <div style={{ marginTop: "0.75rem" }}>
-              <button style={s.btn()} type="submit" disabled={submitting}>
-                {submitting ? "Criando..." : "+ Criar Tarefa"}
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
 
         {/* Lista de tarefas */}
         <div style={s.card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <h2 style={{ ...s.cardTitle, margin: 0 }}>Tarefas</h2>
-            <select style={{ ...s.select, fontSize: "0.85rem" }} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as TaskStatus | "ALL")}>
+            <select style={{ ...s.select, fontSize: "0.85rem" }} value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value as TaskStatus | "ALL"); setPage(1); }}>
               <option value="ALL">Todos os status</option>
               <option value="PENDING">Pendentes</option>
               <option value="IN_PROGRESS">Em Andamento</option>
@@ -597,10 +629,10 @@ export default function DashboardPage() {
 
           {loading ? (
             <div style={s.empty}>Carregando...</div>
-          ) : filtered.length === 0 ? (
+          ) : paginated.length === 0 ? (
             <div style={s.empty}>Nenhuma tarefa encontrada.</div>
           ) : (
-            filtered.map((task) => (
+            paginated.map((task) => (
               <div key={task._id} style={s.taskItem}>
                 <div style={s.taskHeader}>
                   <span style={s.taskTitle}>{task.title}</span>
@@ -617,6 +649,7 @@ export default function DashboardPage() {
                   )}
                   <span>🕐 {new Date(task.createdAt).toLocaleDateString("pt-BR")}</span>
                 </div>
+
                 <div style={s.actions}>
                   {NEXT_STATUS[task.status] && (
                     <button style={s.btn("#2980b9")} onClick={() => handleStatusChange(task._id, NEXT_STATUS[task.status]!)}>
@@ -624,18 +657,96 @@ export default function DashboardPage() {
                     </button>
                   )}
                   {(task.status === "PENDING" || task.status === "IN_PROGRESS") && (
-                    <button style={s.btn("#95a5a6")} onClick={() => handleStatusChange(task._id, "CANCELLED")}>
-                      ✕ Cancelar
-                    </button>
+                    <>
+                      <button style={s.btn("#95a5a6")} onClick={() => handleStatusChange(task._id, "CANCELLED")}>✕ Cancelar</button>
+                      <button style={s.btn("#8e44ad")} onClick={() => { setExtendForm({ taskId: task._id, dueDate: "", reason: "" }); setExtendError(""); setShowHistory(null); }}>📆 Prorrogar</button>
+                    </>
                   )}
                   {task.status !== "DONE" && task.status !== "CANCELLED" && (
-                    <button style={s.btn("#e74c3c")} onClick={() => handleDelete(task._id)}>
-                      🗑 Excluir
+                    <button style={s.btn("#e74c3c")} onClick={() => handleDelete(task._id)}>🗑 Excluir</button>
+                  )}
+                  {task.deadlineHistory?.length > 0 && (
+                    <button style={s.btn("#555")} onClick={() => setShowHistory(showHistory === task._id ? null : task._id)}>
+                      {showHistory === task._id ? "Ocultar histórico" : `📜 Histórico (${task.deadlineHistory.length})`}
                     </button>
                   )}
                 </div>
+
+                {/* Formulário de prorrogação */}
+                {extendForm?.taskId === task._id && (
+                  <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#f5f0ff", borderRadius: 8, border: "1px solid #d3aeee" }}>
+                    {task.dueDate && (
+                      <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "0.5rem" }}>
+                        Prazo atual: <strong>{new Date(task.dueDate).toLocaleDateString("pt-BR")}</strong>
+                      </p>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                      <div>
+                        <label style={s.label}>Nova data *</label>
+                        <input style={s.input} type="date" min={new Date().toISOString().split("T")[0]}
+                          value={extendForm.dueDate}
+                          onChange={(e) => setExtendForm(f => f ? { ...f, dueDate: e.target.value } : f)} />
+                      </div>
+                      <div>
+                        <label style={s.label}>Motivo * (máx. 500)</label>
+                        <textarea style={{ ...s.input, resize: "vertical", minHeight: 60 }}
+                          maxLength={500}
+                          placeholder="Descreva o motivo da prorrogação..."
+                          value={extendForm.reason}
+                          onChange={(e) => setExtendForm(f => f ? { ...f, reason: e.target.value } : f)} />
+                      </div>
+                    </div>
+                    {extendError && <div style={s.error}>{extendError}</div>}
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button style={s.btn("#8e44ad")} onClick={handleExtendDeadline} disabled={extendSubmitting}>
+                        {extendSubmitting ? "Salvando..." : "Prorrogar prazo"}
+                      </button>
+                      <button style={s.btn("#95a5a6")} onClick={() => { setExtendForm(null); setExtendError(""); }}>Cancelar</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Histórico de prorrogações */}
+                {showHistory === task._id && task.deadlineHistory?.length > 0 && (
+                  <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#f9f9f9", borderRadius: 8, border: "1px solid #e8e8e8" }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.85rem", color: "#555", marginBottom: "0.5rem" }}>Histórico de Prorrogações</div>
+                    {task.deadlineHistory.map((entry: IDeadlineHistoryEntry, i: number) => (
+                      <div key={i} style={{ borderBottom: "1px solid #eee", paddingBottom: "0.5rem", marginBottom: "0.5rem" }}>
+                        <div style={{ fontSize: "0.85rem", color: "#333" }}>
+                          <span style={{ color: "#888" }}>{entry.oldDate ? new Date(entry.oldDate).toLocaleDateString("pt-BR") : "Sem prazo"}</span>
+                          {" → "}
+                          <strong>{new Date(entry.newDate).toLocaleDateString("pt-BR")}</strong>
+                        </div>
+                        <div style={{ fontSize: "0.83rem", color: "#555", margin: "2px 0" }}>{entry.reason}</div>
+                        <div style={{ fontSize: "0.78rem", color: "#aaa" }}>
+                          Alterado em {new Date(entry.changedAt).toLocaleString("pt-BR")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
+          )}
+
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", fontSize: "0.88rem" }}>
+              <span style={{ color: "#888" }}>
+                Mostrando {((page - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} tarefas
+              </span>
+              <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                <button style={{ ...s.btn("#e0e0e0"), color: "#333", padding: "0.35rem 0.75rem" }}
+                  onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>‹</button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                  <button key={p}
+                    style={{ ...s.btn(p === page ? "#1e3a5f" : "#e0e0e0"), color: p === page ? "#fff" : "#333", padding: "0.35rem 0.65rem", minWidth: 32 }}
+                    onClick={() => setPage(p)}>{p}</button>
+                ))}
+                <button style={{ ...s.btn("#e0e0e0"), color: "#333", padding: "0.35rem 0.75rem" }}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>›</button>
+              </div>
+            </div>
           )}
         </div>
       </main>

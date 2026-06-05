@@ -1,6 +1,13 @@
 export type TaskStatus = "PENDING" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH";
 
+export interface IDeadlineHistoryEntry {
+  oldDate: string | null;
+  newDate: string;
+  reason: string;
+  changedAt: string;
+}
+
 export interface ITask {
   _id: string;
   title: string;
@@ -11,6 +18,7 @@ export interface ITask {
   dueDate: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  deadlineHistory: IDeadlineHistoryEntry[];
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
