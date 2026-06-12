@@ -11,6 +11,9 @@ Frontend do sistema TaskInsight desenvolvido com **Next.js 14+**, consumindo a A
 - **fetch nativo** — requisições HTTP
 - **Context API** — gerenciamento de estado de autenticação
 - **Recharts** — gráficos
+- **Zod** — validação de schemas
+- **React Hook Form** + **@hookform/resolvers** — formulários
+- **VLibras** — acessibilidade (GOVBR)
 - **Inline styles** — estilização
 
 ---
@@ -54,17 +57,27 @@ NEXT_PUBLIC_ANALYTICS_API_URL=http://127.0.0.1:8000
 src/
 ├── app/
 │   ├── admin/
-│   │   └── page.tsx        # Painel administrativo (role=admin)
+│   │   └── page.tsx              # Painel administrativo (role=admin)
 │   ├── dashboard/
-│   │   └── page.tsx        # Dashboard do usuário autenticado
-│   ├── layout.tsx           # Layout raiz com AuthProvider
-│   └── page.tsx             # Login + Cadastro (tabs)
+│   │   └── page.tsx              # Dashboard do usuário autenticado
+│   ├── layout.tsx                 # Layout raiz com AuthProvider + VLibras
+│   └── page.tsx                   # Login + Cadastro (tabs)
+├── components/
+│   ├── ApiConnectivityCheck.tsx   # Widget de status das APIs
+│   ├── ErrorBoundary.tsx          # Captura de erros global
+│   ├── LoginForm.tsx              # Exemplo de form com validação Zod
+│   └── VLibras.tsx                # Plugin de acessibilidade VLibras
 ├── lib/
-│   ├── api.ts               # Cliente HTTP para API Node.js
-│   └── analyticsApi.ts      # Cliente HTTP para FastAPI Analytics
-├── middleware.ts             # Proteção de rotas via cookie
+│   ├── api.ts                     # Cliente HTTP (Node.js + Python)
+│   ├── analyticsApi.ts            # Cliente HTTP para FastAPI Analytics
+│   ├── connectivity-check.ts      # Verificação de conectividade das APIs
+│   ├── security.ts                # Gerenciamento seguro de tokens
+│   ├── security.test.ts
+│   ├── validation.ts              # Schemas Zod
+│   └── validation.test.ts
+├── middleware.ts                   # Proteção de rotas + headers de segurança
 ├── store/
-│   └── auth.tsx             # Context de autenticação global
+│   └── auth.tsx                   # Context de autenticação global
 └── types/
     ├── user.types.ts
     ├── task.types.ts
@@ -120,7 +133,7 @@ Acessível apenas para `role=admin`. Contém:
 
 ## Autenticação
 
-O token JWT é salvo em dois lugares após o login:
+O token JWT é salvo em dois lugares após o login via `SecurityManager` (`src/lib/security.ts`):
 
 ```
 localStorage  →  usado pelo cliente HTTP (api.ts e analyticsApi.ts)
@@ -128,6 +141,8 @@ cookie        →  usado pelo middleware do Next.js para proteger rotas
 ```
 
 O `role` do usuário também é salvo em cookie para que o middleware possa bloquear o acesso à rota `/admin`.
+
+A resposta de login também retorna `refreshToken`, armazenado para futura rotação de tokens.
 
 ### Proteção de Rotas (middleware.ts)
 
@@ -157,6 +172,9 @@ O cliente `analyticsApi.ts` envia o token JWT diretamente para a FastAPI. A API 
 | `GET` | `/task/metrics/by-priority` | Distribuição por prioridade |
 | `GET` | `/task/metrics/average-time` | Tempo médio de conclusão |
 | `GET` | `/task/metrics/backlog` | Evolução de criadas, finalizadas e backlog por dia |
+| `GET` | `/task/metrics/throughput` | Produtividade diária (tarefas finalizadas por dia) |
+| `GET` | `/task/metrics/response-time` | SLA diária de tempo de resposta |
+| `GET` | `/task/metrics/resolution-time` | SLA diária de tempo de resolução |
 
 ---
 
@@ -181,15 +199,19 @@ O cliente `analyticsApi.ts` envia o token JWT diretamente para a FastAPI. A API 
 ## Fluxo de Status das Tarefas
 
 ```
-PENDING → [Iniciar]  → IN_PROGRESS
-          [Cancelar] → CANCELLED
+PENDING → [Iniciar]   → IN_PROGRESS
+          [Cancelar]  → CANCELLED
+          [Prorrogar] → atualiza dueDate + registra em deadlineHistory
 
-IN_PROGRESS → [Concluir] → DONE
-              [Cancelar] → CANCELLED
+IN_PROGRESS → [Concluir]  → DONE
+              [Cancelar]  → CANCELLED
+              [Prorrogar] → atualiza dueDate + registra em deadlineHistory
 
 DONE      → sem ações
 CANCELLED → sem ações
 ```
+
+A prorrogação envia `dueDate` + `deadlineChangeReason` via `PUT /api/tasks/:id`. O histórico acumula em `deadlineHistory`.
 
 ---
 
@@ -204,3 +226,5 @@ CANCELLED → sem ações
 | `router.push` não redireciona | Cookie não sincronizado | Usar `window.location.href` após login |
 | CORS bloqueado | `FRONTEND_URL` errado no backend | Setar `FRONTEND_URL=http://localhost:3001` no `.env` do backend |
 | Métricas não carregam | FastAPI offline | Verificar se FastAPI está rodando na porta `8000` |
+| VLibras não carrega | Script externo bloqueado | Verificar CSP no middleware — `vlibras.gov.br` deve estar nas fontes permitidas |
+| Erro ao criar tarefa com título duplicado | Backend retorna 409 | Mensagem "Título já existe" exibida no formulário — basta alterar o título |

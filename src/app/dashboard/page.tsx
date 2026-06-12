@@ -274,9 +274,11 @@ export default function DashboardPage() {
     try {
       await nodeApi.post("/tasks", payload);
       (e.target as HTMLFormElement).reset();
+      setShowCreateForm(false);
       await loadTasks();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : "Erro ao criar tarefa");
+      const msg = err instanceof Error ? err.message : "Erro ao criar tarefa";
+      setFormError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -457,7 +459,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={throughput.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#888" }} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#888" }} interval="preserveStartEnd" tickFormatter={(v) => v} angle={-35} textAnchor="end" height={50} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
                 <Tooltip
                   contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
@@ -495,15 +497,9 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={timeline.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#888" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
-                <Tooltip
-                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
-                  formatter={(value, name) => [
-                    value,
-                    name === "criadas" ? "Criadas" : name === "finalizadas" ? "Finalizadas" : "Backlog",
-                  ]}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#888" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={50} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#888" }} />
+                <Tooltip contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }} formatter={(value, name) => [value, name === "criadas" ? "Criadas" : name === "finalizadas" ? "Finalizadas" : "Backlog"]} />
                 <Legend
                   formatter={(value) =>
                     value === "criadas" ? "Criadas" : value === "finalizadas" ? "Finalizadas" : "Backlog"
@@ -533,21 +529,12 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={responseTime.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#888" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
-                <Tooltip
-                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
-                  formatter={(value, name) => [
-                    value,
-                    name === "slaPercentage" ? "SLA (%)" : name === "target" ? "Meta SLA 90%" : "",
-                     
-                  ]}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#888" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={50} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#888" }} />
+                <Tooltip contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }} formatter={(value, name) => [value, name === "slaPercentage" ? "SLA (%)" : "Meta SLA 90%"]} />
                 <Legend
                   formatter={(value) =>
                     value === "slaPercentage" ? "SLA das Tarefas %" : value === "target" ? "Meta SLA 90%" : ""
-                      
-
                   }
                 />
                 
@@ -575,21 +562,12 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={resolutionTime.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#888" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#888" }} />
-                <Tooltip
-                  contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }}
-                  formatter={(value, name) => [
-                    value,
-                    name === "onTimeSolution" ? "SLA  Resolution (%)" : name === "target" ? "Meta SLA Resolution 90%" : "",
-                     
-                  ]}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#888" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={50} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#888" }} />
+                <Tooltip contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }} formatter={(value, name) => [value, name === "onTimeSolution" ? "SLA Resolution (%)" : "Meta SLA Resolution 90%"]} />
                 <Legend
                   formatter={(value) =>
-                    value === "onTimeSolution" ? "SLA  Resolution das Tarefas %" : value === "target" ? "Meta SLA Resolution 90%" : ""
-                      
-
+                    value === "onTimeSolution" ? "SLA Resolution das Tarefas %" : value === "target" ? "Meta SLA Resolution 90%" : ""
                   }
                 />
                 
@@ -610,7 +588,7 @@ export default function DashboardPage() {
             </button>
           </div>
           {showCreateForm && (
-            <form onSubmit={async (e) => { await handleCreate(e); setShowCreateForm(false); }}>
+            <form onSubmit={handleCreate}>
               <div style={s.grid}>
                 <div style={s.fieldFull}>
                   <label style={s.label}>Título *</label>
@@ -630,7 +608,7 @@ export default function DashboardPage() {
                 </div>
                 <div style={s.field}>
                   <label style={s.label}>Prazo</label>
-                  <input style={s.input} name="dueDate" type="date" />
+                  <input style={s.input} name="dueDate" type="date" min={new Date().toISOString().split("T")[0]} />
                 </div>
               </div>
               {formError && <div style={s.error}>{formError}</div>}
@@ -718,6 +696,7 @@ export default function DashboardPage() {
                       <div>
                         <label style={s.label}>Nova data *</label>
                         <input style={s.input} type="date"
+                          min={new Date().toISOString().split("T")[0]}
                           value={extendForm.dueDate}
                           onChange={(e) => setExtendForm(f => f ? { ...f, dueDate: e.target.value } : f)} />
                       </div>

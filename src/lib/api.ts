@@ -30,6 +30,11 @@ export class ApiError extends Error {
 /**
  * Realiza requisições HTTP com tratamento de erros e autenticação
  */
+/** Remove caracteres que poderiam ser usados para injetar entradas falsas nos logs */
+function sanitizeLog(value: string): string {
+  return value.replace(/[\r\n\t]/g, "");
+}
+
 async function fetchApi(url: string, options: RequestInit = {}): Promise<any> {
   const token = SecurityManager.getToken();
   const method = options.method || "GET";
@@ -37,7 +42,7 @@ async function fetchApi(url: string, options: RequestInit = {}): Promise<any> {
   const apiLabel = isNode ? `[Node API]` : `[Python API]`;
   const apiColor = isNode ? "color: #27ae60" : "color: #8e44ad";
 
-  console.log(`%c${apiLabel}`, apiColor, method, url);
+  console.log(`%c${apiLabel}`, apiColor, method, sanitizeLog(url));
 
   try {
     const res = await fetch(url, {
@@ -57,7 +62,7 @@ async function fetchApi(url: string, options: RequestInit = {}): Promise<any> {
     if (res.status === 401) {
       const isLoginRoute = url.includes("/users/login");
       if (!isLoginRoute) {
-        console.warn("[API] Token expirado, limpando credenciais");
+        console.warn("[API] Token expirado, limpando credenciais"); // mensagem estática, sem dados externos
         SecurityManager.clearCredentials();
         if (typeof window !== "undefined") {
           window.location.href = "/";
@@ -89,17 +94,20 @@ async function fetchApi(url: string, options: RequestInit = {}): Promise<any> {
                 (typeof json === "string" ? json : undefined) ||
                 `Erro ${res.status}`;
 
-      console.error(`%c${apiLabel}`, "color: #e74c3c", method, url, "→", res.status, errorMessage);
+      // 4xx de negócio (ex: 409 Título já existe) não são erros de sistema
+      if (res.status >= 500) {
+        console.error(`%c${apiLabel}`, "color: #e74c3c", method, sanitizeLog(url), "→", res.status);
+      }
       throw new ApiError(res.status, errorMessage, url, method);
     }
 
-    console.log(`%c${apiLabel}`, apiColor, method, url, "→", res.status);
+    console.log(`%c${apiLabel}`, apiColor, method, sanitizeLog(url), "→", res.status);
     return json;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error(`%c${apiLabel}`, "color: #e74c3c", "Erro de rede:", error);
+    console.error(`%c${apiLabel}`, "color: #e74c3c", "Erro de rede"); // não loga o objeto de erro externo
     throw new Error(`Erro de conexão com ${isNode ? "Node API" : "Python API"}`);
   }
 }
