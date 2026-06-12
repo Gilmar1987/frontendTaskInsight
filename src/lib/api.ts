@@ -1,3 +1,5 @@
+import * as SecurityManager from "@/lib/security";
+
 const NODE_BASE = "/api/node";
 const PYTHON_BASE = "/api/python";
 
@@ -10,60 +12,101 @@ if (typeof window !== "undefined") {
   console.log("%c  FastAPI (Python) →", "color: #8e44ad", PYTHON_URL);
 }
 
-function getToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+/**
+ * Classe para erros de API com contexto detalhado
+ */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public message: string,
+    public endpoint: string,
+    public method: string = "GET"
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
 }
 
-async function fetchApi(url: string, options: RequestInit = {}) {
-  const token = getToken();
+/**
+ * Realiza requisições HTTP com tratamento de erros e autenticação
+ */
+async function fetchApi(url: string, options: RequestInit = {}): Promise<any> {
+  const token = SecurityManager.getToken();
   const method = options.method || "GET";
   const isNode = url.startsWith(NODE_BASE);
   const apiLabel = isNode ? `[Node API]` : `[Python API]`;
   const apiColor = isNode ? "color: #27ae60" : "color: #8e44ad";
+
   console.log(`%c${apiLabel}`, apiColor, method, url);
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  if (res.status === 401) {
-    const isLoginRoute = url.includes("/users/login");
-    if (!isLoginRoute) {
-      localStorage.removeItem("token");
-      window.location.href = "/";
-    }
-  }
-
-  const text = await res.text();
-  let json: any = null;
   try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { message: text || undefined };
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        // SEGURANÇA: Adicionar headers de prevenção de clickjacking
+        "X-Frame-Options": "DENY",
+        "X-Content-Type-Options": "nosniff",
+        // Adicionar token se disponível
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+
+    // Tratamento de autenticação expirada
+    if (res.status === 401) {
+      const isLoginRoute = url.includes("/users/login");
+      if (!isLoginRoute) {
+        console.warn("[API] Token expirado, limpando credenciais");
+        SecurityManager.clearCredentials();
+        if (typeof window !== "undefined") {
+          window.location.href = "/";
+        }
+      }
+    }
+
+    const text = await res.text();
+    let json: any = null;
+
+    // Tentar fazer parse do JSON
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (e) {
+      json = { message: text || undefined };
+    }
+
+    // Tratamento de erros
+    if (!res.ok) {
+      const errorMessage =
+        res.status === 401
+          ? "Credenciais inválidas ou token expirado"
+          : res.status === 403
+            ? "Você não tem permissão para acessar este recurso"
+            : res.status === 404
+              ? "Recurso não encontrado"
+              : json?.errors?.[0]?.message ||
+                json?.message ||
+                (typeof json === "string" ? json : undefined) ||
+                `Erro ${res.status}`;
+
+      console.error(`%c${apiLabel}`, "color: #e74c3c", method, url, "→", res.status, errorMessage);
+      throw new ApiError(res.status, errorMessage, url, method);
+    }
+
+    console.log(`%c${apiLabel}`, apiColor, method, url, "→", res.status);
+    return json;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error(`%c${apiLabel}`, "color: #e74c3c", "Erro de rede:", error);
+    throw new Error(`Erro de conexão com ${isNode ? "Node API" : "Python API"}`);
   }
-
-  if (!res.ok) {
-    const errorMessage = res.status === 401
-      ? "Credenciais inválidas"
-      : json?.errors?.[0]?.message
-      || json?.message
-      || (typeof json === "string" ? json : undefined)
-      || `Erro ${res.status}`;
-
-    console.error(`%c${apiLabel}`, "color: #e74c3c", method, url, "→", res.status, errorMessage);
-    throw new Error(errorMessage);
-  }
-
-  console.log(`%c${apiLabel}`, apiColor, method, url, "→", res.status);
-  return json;
 }
 
+/**
+ * Cliente da API Node.js
+ */
 export const nodeApi = {
   get: (path: string) => fetchApi(`${NODE_BASE}${path}`),
   post: (path: string, body: unknown) =>
@@ -73,6 +116,9 @@ export const nodeApi = {
   delete: (path: string) => fetchApi(`${NODE_BASE}${path}`, { method: "DELETE" }),
 };
 
+/**
+ * Cliente da API Python (FastAPI)
+ */
 export const pythonApi = {
   get: (path: string) => fetchApi(`${PYTHON_BASE}${path}`),
   post: (path: string, body: unknown) =>

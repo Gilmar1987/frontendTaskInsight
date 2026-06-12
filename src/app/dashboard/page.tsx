@@ -145,6 +145,12 @@ export default function DashboardPage() {
   const [extendError, setExtendError] = useState("");
   const [extendSubmitting, setExtendSubmitting] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(true);
+  const [showThroughput, setShowThroughput] = useState(true);
+  const [showTimeline, setShowTimeline] = useState(true);
+  const [showResponseTime, setShowResponseTime] = useState(true);
+  const [showResolutionTime, setShowResolutionTime] = useState(true);
+  const [showTasks, setShowTasks] = useState(true);
 
   const [metrics, setMetrics] = useState<{
     status: MetricsByStatusResponse | null;
@@ -263,7 +269,7 @@ export default function DashboardPage() {
       title: fd.get("title") as string,
       description: fd.get("description") as string,
       priority: fd.get("priority") as TaskPriority,
-      dueDate: fd.get("dueDate") ? new Date(fd.get("dueDate") as string).toISOString() : undefined,
+      dueDate: fd.get("dueDate") ? (fd.get("dueDate") as string) : undefined,
     };
     try {
       await nodeApi.post("/tasks", payload);
@@ -368,8 +374,13 @@ export default function DashboardPage() {
 
         {/* Métricas Analytics */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>📊 Métricas</h2>
-          {loadingMetrics ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showMetrics ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📊 Métricas</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowMetrics(v => !v)}>
+              {showMetrics ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+          {showMetrics && (loadingMetrics ? (
             <div style={s.empty}>Carregando métricas...</div>
           ) : !metrics.status ? (
             <div style={s.empty}>API de analytics indisponível.</div>
@@ -427,13 +438,18 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-          )}
+          ))}
         </div>
 
         {/* Gráfico de Linha — Produtividade Diária */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>📈 Produtividade Diária</h2>
-          {loadingThroughput ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showThroughput ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📈 Produtividade Diária</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowThroughput(v => !v)}>
+              {showThroughput ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+          {showThroughput && (loadingThroughput ? (
             <div style={s.empty}>Carregando gráfico...</div>
           ) : !throughput || throughput.data.length === 0 ? (
             <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
@@ -460,13 +476,18 @@ export default function DashboardPage() {
                 
               </LineChart>
             </ResponsiveContainer>
-          )}
+          ))}
         </div>
 
-        {/* Gráfico de Linha —   backlog*/}
+        {/* Gráfico de Linha — Backlog */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>📈 Evolução de Tarefas - Backlog</h2>
-          {loadingTimeline ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showTimeline ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📈 Evolução de Tarefas - Backlog</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowTimeline(v => !v)}>
+              {showTimeline ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+          {showTimeline && (loadingTimeline ? (
             <div style={s.empty}>Carregando gráfico...</div>
           ) : !timeline || timeline.data.length === 0 ? (
             <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
@@ -493,13 +514,18 @@ export default function DashboardPage() {
                 <Line type="monotone" dataKey="backlog"    stroke="#e74c3c" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} strokeDasharray="5 5" />
               </LineChart>
             </ResponsiveContainer>
-          )}
+          ))}
         </div>
 
-         {/* Gráfico de Linha —  ResponseTime SLA Diária */}
+        {/* Gráfico de Linha — ResponseTime SLA */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>📈 SLA Diária Meta 90% com 03 horas para iniciar atendimento</h2>
-          {loadingResponseTime ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showResponseTime ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📈 SLA Diária - Tempo de Resposta (meta 90%)</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowResponseTime(v => !v)}>
+              {showResponseTime ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+          {showResponseTime && (loadingResponseTime ? (
             <div style={s.empty}>Carregando gráfico...</div>
           ) : !responseTime || responseTime.data.length === 0 ? (
             <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
@@ -530,13 +556,18 @@ export default function DashboardPage() {
                 
               </LineChart>
             </ResponsiveContainer>
-          )}
+          ))}
         </div>
 
-        {/* Gráfico de Linha —  ResolutionTime SLA Diária */}
+        {/* Gráfico de Linha — ResolutionTime SLA */}
         <div style={s.card}>
-          <h2 style={s.cardTitle}>📈 SLA Diária Meta 90% com 03 horas para iniciar atendimento</h2>
-          {loadingResolutionTime ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showResolutionTime ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📈 SLA Diária - Tempo de Resolução (meta 90%)</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowResolutionTime(v => !v)}>
+              {showResolutionTime ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+          {showResolutionTime && (loadingResolutionTime ? (
             <div style={s.empty}>Carregando gráfico...</div>
           ) : !resolutionTime || resolutionTime.data.length === 0 ? (
             <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
@@ -567,10 +598,8 @@ export default function DashboardPage() {
                 
               </LineChart>
             </ResponsiveContainer>
-          )}
+          ))}
         </div>
-
-         
 
         {/* Formulário de criação */}
         <div style={s.card}>
@@ -616,8 +645,13 @@ export default function DashboardPage() {
 
         {/* Lista de tarefas */}
         <div style={s.card}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <h2 style={{ ...s.cardTitle, margin: 0 }}>Tarefas</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showTasks ? "1rem" : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <h2 style={{ ...s.cardTitle, margin: 0 }}>Tarefas</h2>
+              <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowTasks(v => !v)}>
+                {showTasks ? "▲ Ocultar" : "▼ Exibir"}
+              </button>
+            </div>
             <select style={{ ...s.select, fontSize: "0.85rem" }} value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value as TaskStatus | "ALL"); setPage(1); }}>
               <option value="ALL">Todos os status</option>
               <option value="PENDING">Pendentes</option>
@@ -627,11 +661,11 @@ export default function DashboardPage() {
             </select>
           </div>
 
-          {loading ? (
+          {showTasks && loading ? (
             <div style={s.empty}>Carregando...</div>
-          ) : paginated.length === 0 ? (
+          ) : showTasks && paginated.length === 0 ? (
             <div style={s.empty}>Nenhuma tarefa encontrada.</div>
-          ) : (
+          ) : showTasks ? (
             paginated.map((task) => (
               <div key={task._id} style={s.taskItem}>
                 <div style={s.taskHeader}>
@@ -643,7 +677,7 @@ export default function DashboardPage() {
                 </div>
                 <p style={s.taskDesc}>{task.description}</p>
                 <div style={s.taskMeta}>
-                  {task.dueDate && <span>📅 Prazo: {new Date(task.dueDate).toLocaleDateString("pt-BR")}</span>}
+                  {task.dueDate && <span>📅 Prazo: {task.dueDate.split("T")[0].split("-").reverse().join("/")}</span>}
                   {task.completedAt && task.startedAt && (
                     <span>⏱ {Math.round((new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime()) / 60000)} min</span>
                   )}
@@ -677,13 +711,13 @@ export default function DashboardPage() {
                   <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#f5f0ff", borderRadius: 8, border: "1px solid #d3aeee" }}>
                     {task.dueDate && (
                       <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "0.5rem" }}>
-                        Prazo atual: <strong>{new Date(task.dueDate).toLocaleDateString("pt-BR")}</strong>
+                        Prazo atual: <strong>{task.dueDate.split("T")[0].split("-").reverse().join("/")}</strong>
                       </p>
                     )}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
                       <div>
                         <label style={s.label}>Nova data *</label>
-                        <input style={s.input} type="date" min={new Date().toISOString().split("T")[0]}
+                        <input style={s.input} type="date"
                           value={extendForm.dueDate}
                           onChange={(e) => setExtendForm(f => f ? { ...f, dueDate: e.target.value } : f)} />
                       </div>
@@ -713,9 +747,9 @@ export default function DashboardPage() {
                     {task.deadlineHistory.map((entry: IDeadlineHistoryEntry, i: number) => (
                       <div key={i} style={{ borderBottom: "1px solid #eee", paddingBottom: "0.5rem", marginBottom: "0.5rem" }}>
                         <div style={{ fontSize: "0.85rem", color: "#333" }}>
-                          <span style={{ color: "#888" }}>{entry.oldDate ? new Date(entry.oldDate).toLocaleDateString("pt-BR") : "Sem prazo"}</span>
+                          <span style={{ color: "#888" }}>{entry.oldDate ? entry.oldDate.split("T")[0].split("-").reverse().join("/") : "Sem prazo"}</span>
                           {" → "}
-                          <strong>{new Date(entry.newDate).toLocaleDateString("pt-BR")}</strong>
+                          <strong>{entry.newDate.split("T")[0].split("-").reverse().join("/")}</strong>
                         </div>
                         <div style={{ fontSize: "0.83rem", color: "#555", margin: "2px 0" }}>{entry.reason}</div>
                         <div style={{ fontSize: "0.78rem", color: "#aaa" }}>
@@ -727,10 +761,10 @@ export default function DashboardPage() {
                 )}
               </div>
             ))
-          )}
+          ) : null}
 
           {/* Paginação */}
-          {totalPages > 1 && (
+          {showTasks && totalPages > 1 && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", fontSize: "0.88rem" }}>
               <span style={{ color: "#888" }}>
                 Mostrando {((page - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} tarefas
