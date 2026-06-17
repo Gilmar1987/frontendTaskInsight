@@ -1,3 +1,9 @@
+
+
+// Métricas para o Dashboard
+
+
+// Métricas por Status
 export interface StatusItem {
   count: number;
   percent: number;
@@ -14,6 +20,8 @@ export interface MetricsByStatusResponse {
   };
 }
 
+
+// Métricas por Prioridade
 export interface MetricsByPriorityResponse {
   success: boolean;
   data: {
@@ -33,6 +41,7 @@ export interface AverageTimeResponse {
   };
 }
 
+// Throughput - Quantidade de tarefas concluídas por dia
 export interface ThroughputItem {
   day: string;
   count: number;
@@ -41,6 +50,8 @@ export interface ThroughputResponse {
   success: boolean;
   data: ThroughputItem[];
 }
+
+// Timeline de Tarefas backlog, criadas e finalizadas
 export interface TimelineItem {
   date: string;
   criadas: number;
@@ -53,6 +64,7 @@ export interface TimelineResponse {
   data: TimelineItem[];
 }
 
+// Tempo de Resposta por Dia (SLA)
 export interface ResponseTimeItem {
   date: string;
   slaPercentage: number;
@@ -64,6 +76,7 @@ export interface ResponseTimeResponse {
   data: ResponseTimeItem[];
 }
 
+// Resolução de Tempo por Dia
 export interface ResolutionTimeItem {
   date: string;
   onTimeSolution: number;
@@ -73,4 +86,29 @@ export interface ResolutionTimeItem {
 export interface ResolutionTimeResponse {
   success: boolean;
   data: ResolutionTimeItem[];
+}
+
+
+// Tempo de Resposta por Mês
+export interface ResponseTimeMesItem {
+  month: string;
+  slaPercentage: number;
+  target: 90; // Meta de SLA (exemplo: 90%)
+}
+
+export interface ResponseTimeMesResponse {
+  success: boolean;
+  data: ResponseTimeMesItem[];
+}
+
+// Resolução de Tempo por Mês
+export interface ResolutionTimeMesItem {
+  month: string;
+  onTimeSolution: number;
+  target: number;
+}
+
+export interface ResolutionTimeMesResponse {
+  success: boolean;
+  data: ResolutionTimeMesItem[];
 }

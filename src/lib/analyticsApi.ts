@@ -6,7 +6,10 @@ import {
   ThroughputResponse,
   ResponseTimeResponse,
   ResolutionTimeResponse,
+  ResponseTimeMesResponse,
+  ResolutionTimeMesResponse,
 } from "@/types/metrics.types";
+import { getRSCModuleInformation } from "next/dist/build/analysis/get-page-static-info";
 
 const BASE_URL = process.env.NEXT_PUBLIC_ANALYTICS_API_URL || "http://127.0.0.1:8000";
 
@@ -45,4 +48,11 @@ export const analyticsApi = {
     fetchMetrics<ResponseTimeResponse>("/task/metrics/response-time", token),
   getResolutionTime: (token: string) =>
     fetchMetrics<ResolutionTimeResponse>("/task/metrics/resolution-time", token),
+  
+  getResponseTimeMes: (token: string) =>
+    fetchMetrics<ResponseTimeMesResponse>("/task/metrics/response-time-mes", token),
+
+  getResolutionTimeMes: (token: string) =>
+    fetchMetrics<ResolutionTimeMesResponse>("/task/metrics/resolution-time-mes", token),
+  
 };

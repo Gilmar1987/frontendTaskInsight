@@ -7,7 +7,7 @@ import { analyticsApi } from "@/lib/analyticsApi";
 import { useAuth } from "@/store/auth";
 import { ITask, TaskStatus, TaskPriority, ICreateTask, IDeadlineHistoryEntry } from "@/types/task.types";
 import { MetricsByStatusResponse, MetricsByPriorityResponse, AverageTimeResponse, 
-  TimelineResponse,ThroughputResponse, ResponseTimeResponse, ResolutionTimeResponse } from "@/types/metrics.types";
+  TimelineResponse,ThroughputResponse, ResponseTimeResponse, ResolutionTimeResponse, ResponseTimeMesResponse, ResolutionTimeMesResponse,} from "@/types/metrics.types";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -151,6 +151,8 @@ export default function DashboardPage() {
   const [showResponseTime, setShowResponseTime] = useState(true);
   const [showResolutionTime, setShowResolutionTime] = useState(true);
   const [showTasks, setShowTasks] = useState(true);
+  const [showResponseTimeMes, setShowResponseTimeMes] = useState(true);
+  const [showResolutionTimeMes, setShowResolutionTimeMes] = useState(true);
 
   const [metrics, setMetrics] = useState<{
     status: MetricsByStatusResponse | null;
@@ -167,6 +169,11 @@ export default function DashboardPage() {
   const [loadingResponseTime, setLoadingResponseTime] = useState(true);
   const [resolutionTime, setResolutionTime] = useState<ResolutionTimeResponse | null>(null);
   const [loadingResolutionTime, setLoadingResolutionTime] = useState(true);
+  const [responseTimeMes, setResponseTimeMes] = useState<ResponseTimeMesResponse | null>(null);
+  const [loadingResponseTimeMes, setLoadingResponseTimeMes] = useState(true);
+  const [resolutionTimeMes, setResolutionTimeMes] = useState<ResolutionTimeMesResponse | null>(null);
+  const [loadingResolutionTimeMes, setLoadingResolutionTimeMes] = useState(true);
+
 
   useEffect(() => {
     if (!token) { router.replace("/"); return; }
@@ -176,6 +183,8 @@ export default function DashboardPage() {
     loadThroughput();
     loadResponseTime();
     loadResolutionTime();
+    loadResponseTimeMes();
+    loadResolutionTimeMes();
 
   }, [token]);
 
@@ -230,6 +239,33 @@ export default function DashboardPage() {
       setLoadingResolutionTime(false);
     }
   }
+
+  async function loadResponseTimeMes() {
+    if (!token) return;
+    setLoadingResponseTimeMes(true);
+    try {
+      const data = await analyticsApi.getResponseTimeMes(token);
+      setResponseTimeMes(data);
+    } catch {
+      setResponseTimeMes(null);
+    } finally {
+      setLoadingResponseTimeMes(false);
+    }
+  }
+
+  async function loadResolutionTimeMes() {
+    if (!token) return;
+    setLoadingResolutionTimeMes(true);
+    try {
+      const data = await analyticsApi.getResolutionTimeMes(token);
+      setResolutionTimeMes(data);
+    } catch {
+      setResolutionTimeMes(null);
+    } finally {
+      setLoadingResolutionTimeMes(false);
+    }
+  }
+
 
   async function loadMetrics() {
     if (!token) return;
@@ -578,6 +614,77 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           ))}
         </div>
+
+        {/* Gráfico de linha Response Time Mes*/}
+        <div style={s.card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showResponseTimeMes ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📈 SLA Mensal - Tempo de Resposta (meta 90%)</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowResponseTimeMes(v => !v)}>
+              {showResponseTimeMes ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+
+          {showResponseTimeMes && (loadingResponseTimeMes ? (
+            <div style={s.empty}>Carregando gráfico...</div>
+          ) : !responseTimeMes || responseTimeMes.data.length === 0 ? (
+            <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={responseTimeMes.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={50} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#888" }} />
+                <Tooltip contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }} formatter={(value, name) => [value, name === "slaPercentage" ? "SLA (%)" : "Meta SLA 90%"]} />
+                <Legend
+                  formatter={(value) =>
+                    value === "slaPercentage" ? "SLA das Tarefas %" : value === "target" ? "Meta SLA 90%" : ""
+                  }
+                />
+
+                <Line type="monotone" dataKey="slaPercentage" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="target" stroke="#f39c12" strokeWidth={2} dot={false} activeDot={false} strokeDasharray="5 5" />
+
+              </LineChart>
+            </ResponsiveContainer>
+          ))
+        }
+        </div>
+
+        {/* Gráfico de linha Resolution Time Mes*/}
+        <div style={s.card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showResolutionTimeMes ? "1rem" : 0 }}>
+            <h2 style={{ ...s.cardTitle, margin: 0 }}>📈 SLA Mensal - Tempo de Resolução (meta 90%)</h2>
+            <button style={{ ...s.btn("#e8edf2"), color: "#1e3a5f", padding: "0.3rem 0.8rem", fontSize: "0.82rem" }} onClick={() => setShowResolutionTimeMes(v => !v)}>
+              {showResolutionTimeMes ? "▲ Ocultar" : "▼ Exibir"}
+            </button>
+          </div>
+
+          {showResolutionTimeMes && (loadingResolutionTimeMes ? (
+            <div style={s.empty}>Carregando gráfico...</div>
+          ) : !resolutionTimeMes || resolutionTimeMes.data.length === 0 ? (
+            <div style={s.empty}>Sem dados suficientes para exibir o gráfico.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={resolutionTimeMes.data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={50} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#888" }} />
+                <Tooltip contentStyle={{ fontSize: 13, borderRadius: 8, border: "1px solid #e0e0e0" }} formatter={(value, name) => [value, name === "onTimeSolution" ? "SLA Resolution (%)" : "Meta SLA Resolution 90%"]} />
+                <Legend
+                  formatter={(value) =>
+                    value === "onTimeSolution" ? "SLA Resolution das Tarefas %" : value === "target" ? "Meta SLA Resolution 90%" : ""
+                  }
+                />
+
+                <Line type="monotone" dataKey="onTimeSolution" stroke="#27ae60" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />  
+                <Line type="monotone" dataKey="target" stroke="#f31246" strokeWidth={2} dot={false} activeDot={false} strokeDasharray="5 5" />
+
+              </LineChart>
+            </ResponsiveContainer>
+          ))
+        }
+        </div>
+
 
         {/* Formulário de criação */}
         <div style={s.card}>
